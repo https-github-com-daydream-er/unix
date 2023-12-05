@@ -301,7 +301,7 @@ void parallel_operation(char *client_fifo_path, char *server_fifo_path, char *io
             int data[MB];
             for (int k = 0; k < MB; k++)
             {
-                data[k] = rand() % 100; // 임의의 데이터 생성
+                data[k] = k; // 임의의 데이터 생성
             }
 
             // 클라이언트에서 서버로 통신
