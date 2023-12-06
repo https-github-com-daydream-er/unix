@@ -1,8 +1,9 @@
 #include "mytest.h"
 #include "server.h"
+
 #define CLIENT_H
 
-void	debug_result(void)
+static void	debug_result(void)
 {
 	int		i;
 	char	cmd[1024];
@@ -28,7 +29,7 @@ void	debug_result(void)
 }
 
 // 오름차순 비교 함수 구현
-int ft_compare(const void *a, const void *b)
+static int ft_compare(const void *a, const void *b)
 {
     int num1 = *(int *)a;
     int num2 = *(int *)b;
@@ -41,7 +42,7 @@ int ft_compare(const void *a, const void *b)
 }
 
 // rest_time;
-void	do_compute_node(int *dump)
+static void	do_compute_node(int *dump)
 {
 #ifdef TIMES
 	int time_result;
@@ -58,31 +59,27 @@ void	do_compute_node(int *dump)
 
 }
 
-void	comm_init(int id, int server2server[4][2])
+static void	comm_init(int id, int server2server[4][2])
 {
 	int			i;
 	char		fifo_name[64];
 
 	for (i = 0; i < 4; i++)
 	{
+		if (id == i)
+			continue;
+		sprintf(fifo_name, "tmp/serverfifo%d2%d", i, id);
+		server2server[i][0] = open(fifo_name, O_RDONLY | O_NONBLOCK); // i -> id: read
+	}
+	for (i = 0; i < 4; i++)	{
+		if (id == i)
+			continue;
 		sprintf(fifo_name, "tmp/serverfifo%d2%d", id, i);
 		server2server[i][1] = open(fifo_name, O_WRONLY); // id -> i: write
 	}
-	for (i = 0; i < 4; i++)
-	{
-		sprintf(fifo_name, "tmp/serverfifo%d2%d", i, id);
-		server2server[i][0] = open(fifo_name, O_RDONLY); // i -> id: read
-	}
-	// client2client O_NONBLOCK
-	for (i = 0; i < 4; i++)
-	{
-		if (i == id)
-			continue;
-		fcntl(server2server[i][0], F_SETFL, O_NONBLOCK);
-	}
 }
 
-void    send_server(int id, char fifo_name[1024])
+static void	send_server(int id, char fifo_name[1024])
 {
 	int		i;
 	int		fd;
@@ -106,7 +103,7 @@ void    send_server(int id, char fifo_name[1024])
 	close(fd);
 }
 
-void	writeTimeAdvLock(int index, int time_result)
+static void	writeTimeAdvLock(int index, int time_result)
 {
 	struct flock	myLock;
 	int				fd;
@@ -114,7 +111,7 @@ void	writeTimeAdvLock(int index, int time_result)
 
 	if (time_result < 0)
 		time_result += SEC;
-	fd = open("clientOrientedTime", O_RDWR, 0644);
+	fd = open("serverOrientedTime", O_RDWR, 0644);
 	myLock.l_type = F_WRLCK;
 	myLock.l_whence = SEEK_SET;
 	myLock.l_start = index * sizeof(int);
@@ -132,15 +129,17 @@ void	writeTimeAdvLock(int index, int time_result)
 }
 
 // do_comm -> do_compute -> do_io_node
-void	do_comm_node(int id, char fifo_name[1024])
+static void	do_comm_node(int id, char fifo_name[1024])
 {
 	int		ret;
 	int		chunk[8];
 	int		server2server[4][2];
 	int		i;
+	int		j;
 	int		dump[MB];
 	int		dump_idx;
 	int		pip;
+	int		chunk_size;
 
 #ifdef TIMES
 	int time_result;
@@ -151,10 +150,9 @@ void	do_comm_node(int id, char fifo_name[1024])
 	dump_idx = -1;
 	comm_init(id, server2server);
 	pip = open(fifo_name, O_RDONLY);
-	while ((ret = read(pip, chunk, sizeof(int) * 8)) > 0)
+	while ((chunk_size = read(pip, chunk, sizeof(int) * 8)) > 0)
 	{
-		printf("%d = ret\n", ret);
-		for (i = 0; i < 8; i++)
+		for (i = 0; i < 8; i++) // 8개의 데이터를 파이프에 쓴다.
 		{
 			int	remain = chunk[i] % 32;
 
@@ -169,7 +167,23 @@ void	do_comm_node(int id, char fifo_name[1024])
 			else if ((25 <= remain && remain < 32) || remain == 0)
 				ret = write(server2server[3][1], &chunk[i], sizeof(int)); // id -> 3; write
 			else
+			{
+				perror("wrong chunk number");
 				exit(1);
+			}
+		}
+		for (j = 0; j < 3; j++) // 파이프를 비우기 위해서는 최소 8번씩 반복해야 한다.
+		{
+			for (i = 0; i < 4; i++) // 하지만, 동시성 문제를 극복하기 위해 12번 정도 여유롭게 반복해서 파이프를 비운다.
+			{
+				int	buffer;
+
+				if (id == i)
+					continue;
+				ret = read(server2server[i][0], &buffer, sizeof(int)); // i -> id; read
+				if (ret > 0)
+					dump[++dump_idx] = buffer;
+			}
 		}
 	}
 	while (1)
@@ -202,7 +216,7 @@ void	do_comm_node(int id, char fifo_name[1024])
 	close(pip);
 }
 
-void	parent(char *str)
+static void	parent(char *str)
 {
 	int		pid;
 	int		status;
@@ -222,7 +236,7 @@ void	parent(char *str)
 	}
 }
 
-void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에 저장?
+static void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에 저장?
 {
 	int		fd;
 	char	file_name[25];
@@ -248,7 +262,7 @@ void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에 저장
 #endif
 }
 
-void	Client2Server(int i)
+static void	Client2Server(int i)
 {
 	int	pid;
 	int	status;
@@ -268,7 +282,7 @@ void	Client2Server(int i)
 	unlink(server_fifo);
 }
 
-void	parallel_operation(void)
+static void	parallel_operation(void)
 {
 	int	i;
 	int	j;
@@ -281,12 +295,7 @@ void	parallel_operation(void)
 			int	ret;
 
 			sprintf(server2server, "tmp/serverfifo%d2%d", i, j);
-			if ((ret = mkfifo(server2server, 0644)) < 0)
-			{
-				perror("parallel_operation: fifo");
-				exit(1);
-			}
-			printf("serverfifo: %d", ret);
+			ret = mkfifo(server2server, 0644);
 		}
 	}
 	for (i = 0; i < 4; i++)
@@ -312,7 +321,7 @@ void	parallel_operation(void)
 	}
 }
 
-int client_oriented_io() {
+int server_oriented_io() {
 
 #ifdef TIMES
 	struct timeval stime, etime;
@@ -347,7 +356,7 @@ int client_oriented_io() {
 	return (1);
 }
 
-int	main()
-{
-	client_oriented_io();
-}
+// int	main()
+// {
+// 	server_oriented_io();
+// }

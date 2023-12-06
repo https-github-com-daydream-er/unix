@@ -1,5 +1,6 @@
 #include "mytest.h"
 #include "client.h"
+
 #define	SERVER_H
 
 void	debug_result(void)
@@ -61,6 +62,7 @@ void	do_compute_node(int *dump)
 void	comm_init(int id, int client2client[4][4][2], int pip[2], int data[MB])
 {
 	char		file_name[1024];
+	char		cmd[1024];
 	int			fd;
 	int			i;
 
@@ -220,7 +222,6 @@ void	do_io_node(int id, int pip[2])
 
 	close(pip[1]);
 	sprintf(file_name, "IOnode_client/IOnode_#%d", id + 1);
-	printf("file_name : [%s]\n", file_name);
 	fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 	if (fd < 0)
 	{
@@ -340,26 +341,10 @@ int client_oriented_io() {
 		time_result += SEC;
 	printf("Client_oriented_io TIMES == %ld %ld %ld\n", (long)etime.tv_usec, (long)stime.tv_usec, (long)time_result);
 #endif
-
-#ifdef TIMES
-	fd = open("clientOrientedTime", O_RDONLY);
-	int	clientTime[4];
-	int	i;
-
-	i = 0;
-	while ((read(fd, &clientTime[i], sizeof(int)) > 0))
-	{
-		if (i == COMM)
-			printf("communicate TIMES: %ld\n", (long)clientTime[i]);
-		else if (i == COMP)
-			printf("compute TIMES: %ld\n", (long)clientTime[i]);
-		else if (i == IO)
-			printf("IO TIMES: %ld\n", (long)clientTime[i]);
-		i++;
-	}
-	close(fd);
-#endif
-
 	return (1);
 }
 
+// int	main()
+// {
+// 	client_oriented_io();
+// }

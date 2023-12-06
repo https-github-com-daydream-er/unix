@@ -12,6 +12,7 @@
 #include <time.h>
 #include <sys/stat.h>
 
+#include <string.h>
 // 1MB = 1048576
 // 1/4 MB = 262144
 #define MB 262144
@@ -23,16 +24,16 @@
 #define IO 2
 #define SEC 1000000
 
-void	debug_result(void);
-int     ft_compare(const void *a, const void *b);
-void	do_compute_node(int *dump);
-void	comm_init(int id, int server2server[4][2]);
-void    send_server(int id, char fifo_name[1024]);
-void	writeTimeAdvLock(int index, int time_result);
-void	do_comm_node(int id, char fifo_name[1024]);
-void	parent(char *str);
-void	Client2Server(int i);
-void	parallel_operation(void);
-void	do_io_node(int id, int dump[MB]);
+static void	debug_result(void);
+static int	ft_compare(const void *a, const void *b);
+static void	do_compute_node(int *dump);
+static void	comm_init(int id, int server2server[4][2]);
+static void send_server(int id, char fifo_name[1024]);
+static void	writeTimeAdvLock(int index, int time_result);
+static void	do_comm_node(int id, char fifo_name[1024]);
+static void	parent(char *str);
+static void	Client2Server(int i);
+static void	parallel_operation(void);
+static void	do_io_node(int id, int dump[MB]);
 
 #endif
