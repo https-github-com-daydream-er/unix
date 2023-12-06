@@ -1,5 +1,6 @@
 #include "mytest.h"
-#include "project.h"
+#include "server.h"
+#define CLIENT_H
 
 void	debug_result(void)
 {
@@ -10,12 +11,12 @@ void	debug_result(void)
 
 	for (i = 1; i <= 4; i++)
 	{
-		sprintf(cmd, "od -i IOnode/IOnode_#%d | more", i);
+		sprintf(cmd, "od -i IOnode_server/IOnode_#%d | more", i);
 		system(cmd);
 	}
 	for (i = 1; i <= 4; i++)
 	{
-		sprintf(cmd, "IOnode/IOnode_#%d", i);
+		sprintf(cmd, "IOnode_server/IOnode_#%d", i);
 		fd = open(cmd, O_RDONLY);
 		if (fd < 0)
 		{
@@ -57,41 +58,52 @@ void	do_compute_node(int *dump)
 
 }
 
-void	comm_init(int id, int client2client[4][4][2], int pip[2], int data[MB])
+void	comm_init(int id, int server2server[4][2])
 {
-	char		file_name[1024];
-	int			fd;
 	int			i;
+	char		fifo_name[64];
 
-	sprintf(file_name, "data/p%d.dat", id + 1);
-	fd = open(file_name, O_RDONLY);
-	if (fd < 0)
-		exit(1);
-	read(fd, data, MB * sizeof(int));
-	close(pip[0]);
 	for (i = 0; i < 4; i++)
-		close(client2client[id][i][0]); // id -> i :  close(read)
+	{
+		sprintf(fifo_name, "tmp/serverfifo%d2%d", id, i);
+		server2server[i][1] = open(fifo_name, O_WRONLY); // id -> i: write
+	}
 	for (i = 0; i < 4; i++)
-		close(client2client[i][id][1]); // i -> id : close(write)
+	{
+		sprintf(fifo_name, "tmp/serverfifo%d2%d", i, id);
+		server2server[i][0] = open(fifo_name, O_RDONLY); // i -> id: read
+	}
 	// client2client O_NONBLOCK
 	for (i = 0; i < 4; i++)
 	{
 		if (i == id)
 			continue;
-		fcntl(client2client[i][id][0], F_SETFL, O_NONBLOCK);
+		fcntl(server2server[i][0], F_SETFL, O_NONBLOCK);
 	}
 }
 
-void    send_server(int pip[2], int dump[MB])
+void    send_server(int id, char fifo_name[1024])
 {
-	int	i;
+	int		i;
+	int		fd;
+	int		pip;
+	char	file_name[1024];
+	int		data[MB];
+	int		ret;
 
+	sprintf(file_name, "data/p%d.dat", id + 1);
+	fd = open(file_name, O_RDONLY);
+	if ((ret = read(fd, data, MB * sizeof(int))) < 0)
+		exit(1);
+	pip = open(fifo_name, O_WRONLY);
 	i = 0;
 	while (i < MB)
 	{
-		write(pip[1], &dump[i], sizeof(int) * 8);
+		write(pip, &data[i], sizeof(int) * 8);
 		i += 8;
 	}
+	close(pip);
+	close(fd);
 }
 
 void	writeTimeAdvLock(int index, int time_result)
@@ -119,18 +131,16 @@ void	writeTimeAdvLock(int index, int time_result)
 	close(fd);
 }
 
-// comm_time
-void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
+// do_comm -> do_compute -> do_io_node
+void	do_comm_node(int id, char fifo_name[1024])
 {
-	int			data[MB];
-	int			dump[MB];
-	int			ret;
-	int			i;
-	int			dump_idx;
-
-	comm_init(id, client2client, pip, data);
-	ret = 0;
-	dump_idx = -1;
+	int		ret;
+	int		chunk[8];
+	int		server2server[4][2];
+	int		i;
+	int		dump[MB];
+	int		dump_idx;
+	int		pip;
 
 #ifdef TIMES
 	int time_result;
@@ -138,46 +148,31 @@ void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
 
 	gettimeofday(&stime, NULL);
 #endif
-
-	for (i = 0; i < MB; i++)
+	dump_idx = -1;
+	comm_init(id, server2server);
+	pip = open(fifo_name, O_RDONLY);
+	while ((ret = read(pip, chunk, sizeof(int) * 8)) > 0)
 	{
-		int remain = data[i] % 32;
-
-		if ((8 * id + 1 <= remain && remain <= 8 * id + 8) || (id == 3 && remain == 0))
-			dump[++dump_idx] = data[i];
-		else if (1 <= remain && remain <= 8)
-			ret = write(client2client[id][0][1], &data[i], sizeof(int));
-		else if (9 <= remain && remain <= 16)
-			ret = write(client2client[id][1][1], &data[i], sizeof(int));
-		else if (17 <= remain && remain <= 24)
-			ret = write(client2client[id][2][1], &data[i], sizeof(int));
-		else if ((25 <= remain && remain < 32) || remain == 0)
-			ret = write(client2client[id][3][1], &data[i], sizeof(int));
-		else
+		printf("%d = ret\n", ret);
+		for (i = 0; i < 8; i++)
 		{
-			char	buffer[1024];
+			int	remain = chunk[i] % 32;
 
-			sprintf(buffer, "[Error : %d] %d", id, remain % 512);
-			perror(buffer);
-			exit(1);
-		}
-		int	j;
-
-		for (j = 0; j < 4; j++)
-		{
-			int	buffer;
-
-			if (id == j)
-				continue;
-			// read쪽 pipe buffer 계속 비워줘야 한다.
-			ret = read(client2client[j][id][0], &buffer, sizeof(int));
-			if (ret > 0)
-				dump[++dump_idx] = buffer;
+			if ((8 * id + 1 <= remain && remain <= 8 * id + 8) || (id == 3 && remain == 0))
+				dump[++dump_idx] = chunk[i];
+			else if (1 <= remain && remain <= 8)
+				ret = write(server2server[0][1], &chunk[i], sizeof(int)); // id -> 0; write
+			else if (9 <= remain && remain <= 16)
+				ret = write(server2server[1][1], &chunk[i], sizeof(int)); // id -> 1; write
+			else if (17 <= remain && remain <= 24)
+				ret = write(server2server[2][1], &chunk[i], sizeof(int)); // id -> 2; write
+			else if ((25 <= remain && remain < 32) || remain == 0)
+				ret = write(server2server[3][1], &chunk[i], sizeof(int)); // id -> 3; write
+			else
+				exit(1);
 		}
 	}
-	// NON-BLOCKING -> busy-waiting 발생
-	// BLOCKING -> DEADLOCK 발생
-	while (1) 
+	while (1)
 	{
 		for (i = 0; i < 4; i++)
 		{
@@ -185,7 +180,7 @@ void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
 
 			if (id == i)
 				continue;
-			ret = read(client2client[i][id][0], &buffer, sizeof(int));
+			ret = read(server2server[i][0], &buffer, sizeof(int)); // i -> id; read
 			if (ret > 0)
 				dump[++dump_idx] = buffer;
 		}
@@ -193,54 +188,18 @@ void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
 		if (dump_idx == MB - 1)
 			break ;
 	}
-
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
 	time_result = (etime.tv_usec - stime.tv_usec);
 	writeTimeAdvLock(COMM, time_result);
 #endif
-
 	do_compute_node(dump); // 정렬하기
-	send_server(pip, dump); // server에게 전달
+	do_io_node(id, dump); // io_node로 데이터 저장하기
 	for (i = 0; i < 4; i++)
-		close(client2client[id][i][1]); // id -> i :  close(write)
+		close(server2server[i][0]);
 	for (i = 0; i < 4; i++)
-		close(client2client[i][id][0]); // i -> id : close(read)
-	close(pip[1]);
-}
-
-// io_time
-void	do_io_node(int id, int pip[2])
-{
-	int		ret;
-	int		chunk[8];
-	char	file_name[25];
-	int		fd;
-
-	close(pip[1]);
-	sprintf(file_name, "IOnode/IOnode_#%d", id + 1);
-	printf("file_name : [%s]\n", file_name);
-	fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-	if (fd < 0)
-	{
-		perror("I/O node CREATE FAIL");
-		exit(1);
-	}
-#ifdef TIMES
-	int time_result;
-	struct timeval stime, etime;
-
-	gettimeofday(&stime, NULL);
-#endif
-	while ((ret = read(pip[0], chunk, sizeof(int) * 8)) > 0)
-		write(fd, chunk, sizeof(int) * 8);
-#ifdef TIMES
-	gettimeofday(&etime, NULL);
-	time_result = (etime.tv_usec - stime.tv_usec);
-	writeTimeAdvLock(IO, time_result);
-#endif
-	close(pip[0]);
-	close(fd);
+		close(server2server[i][1]);
+	close(pip);
 }
 
 void	parent(char *str)
@@ -263,31 +222,53 @@ void	parent(char *str)
 	}
 }
 
-void	Client2Server_io(int i)
+void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에 저장?
+{
+	int		fd;
+	char	file_name[25];
+#ifdef TIMES
+	int time_result;
+	struct timeval stime, etime;
+
+	gettimeofday(&stime, NULL);
+#endif
+	sprintf(file_name, "IOnode_server/IOnode_#%d", id + 1);
+	printf("file_name : [%s]\n", file_name);
+	fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+	if (fd < 0)
+	{
+		perror("I/O node CREATE FAIL");
+		exit(1);
+	}
+	write(fd, dump, sizeof(int) * MB);
+#ifdef TIMES
+	gettimeofday(&etime, NULL);
+	time_result = (etime.tv_usec - stime.tv_usec);
+	writeTimeAdvLock(IO, time_result);
+#endif
+}
+
+void	Client2Server(int i)
 {
 	int	pid;
 	int	status;
 	char	server_fifo[1024];
-	char	client_fifo[1024];
 
-	sprintf(server_fifo, "/tmp/server%d", i);
-	sprintf(client_fifo, "/tmp/client%d", i);
+	sprintf(server_fifo, "tmp/server2client%d", i);
 	mkfifo(server_fifo, 0644);
-	mkfifo(client_fifo, 0644);
 	pid = fork();
 	if (pid == 0) // client
-		do_comm_node(i);
+		send_server(i, server_fifo);
 	else // server
 	{
-		do_io_node(i);
-		wait(&status);
+		do_comm_node(i, server_fifo);
+		pid = wait(&status);
 		printf("[DEBUG] Client2Server, pid : %d, status: %d done\n", pid, status);
 	}
 	unlink(server_fifo);
-	unlink(client_fifo);
 }
 
-void	parallel_server(void)
+void	parallel_operation(void)
 {
 	int	i;
 	int	j;
@@ -297,8 +278,15 @@ void	parallel_server(void)
 	{
 		for (int j = 0; j < 4; j++)
 		{
-			sprintf(server2server, "/tmp/server_fifo_%d2%d", i, j);
-			mkfifo(server2server, 0644);
+			int	ret;
+
+			sprintf(server2server, "tmp/serverfifo%d2%d", i, j);
+			if ((ret = mkfifo(server2server, 0644)) < 0)
+			{
+				perror("parallel_operation: fifo");
+				exit(1);
+			}
+			printf("serverfifo: %d", ret);
 		}
 	}
 	for (i = 0; i < 4; i++)
@@ -308,12 +296,20 @@ void	parallel_server(void)
 		pid = fork();
 		if (pid == 0)
 		{
-			Client2Server_io(i);
+			Client2Server(i);
 			exit(0);
 		}
 	}
 	parent("parallel_operation");
 	debug_result();
+	for (i = 0; i < 4; i++)
+	{
+		for (j = 0; j < 4; j++)
+		{
+			sprintf(server2server, "tmp/serverfifo%d2%d", i, j);
+			unlink(server2server);
+		}
+	}
 }
 
 int client_oriented_io() {
@@ -339,34 +335,19 @@ int client_oriented_io() {
 	write(fd, &ZERO, sizeof(int));
 	write(fd, &ZERO, sizeof(int));
 	close(fd);
-	parallel_server();
+	parallel_operation();
 
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
 	time_result = etime.tv_usec - stime.tv_usec;
 	if (time_result < 0)
 		time_result += SEC;
-	printf("Client_oriented_io TIMES == %ld %ld %ld\n", (long)etime.tv_usec, (long)stime.tv_usec, (long)time_result);
+	printf("Server_oriented_io TIMES == %ld %ld %ld\n", (long)etime.tv_usec, (long)stime.tv_usec, (long)time_result);
 #endif
-
-#ifdef TIMES
-	fd = open("clientOrientedTime", O_RDONLY);
-	int	clientTime[4];
-	int	i;
-
-	i = 0;
-	while ((read(fd, &clientTime[i], sizeof(int)) > 0))
-	{
-		if (i == COMM)
-			printf("communicate TIMES: %ld\n", (long)clientTime[i]);
-		else if (i == COMP)
-			printf("compute TIMES: %ld\n", (long)clientTime[i]);
-		else if (i == IO)
-			printf("IO TIMES: %ld\n", (long)clientTime[i]);
-		i++;
-	}
-	close(fd);
-#endif
-
 	return (1);
+}
+
+int	main()
+{
+	client_oriented_io();
 }

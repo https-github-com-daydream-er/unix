@@ -1,5 +1,6 @@
 #include "mytest.h"
-#include "project.h"
+#include "client.h"
+#define	SERVER_H
 
 void	debug_result(void)
 {
@@ -10,12 +11,12 @@ void	debug_result(void)
 
 	for (i = 1; i <= 4; i++)
 	{
-		sprintf(cmd, "od -i IOnode/IOnode_#%d | more", i);
+		sprintf(cmd, "od -i IOnode_client/IOnode_#%d | more", i);
 		system(cmd);
 	}
 	for (i = 1; i <= 4; i++)
 	{
-		sprintf(cmd, "IOnode/IOnode_#%d", i);
+		sprintf(cmd, "IOnode_client/IOnode_#%d", i);
 		fd = open(cmd, O_RDONLY);
 		if (fd < 0)
 		{
@@ -218,7 +219,7 @@ void	do_io_node(int id, int pip[2])
 	int		fd;
 
 	close(pip[1]);
-	sprintf(file_name, "IOnode/IOnode_#%d", id + 1);
+	sprintf(file_name, "IOnode_client/IOnode_#%d", id + 1);
 	printf("file_name : [%s]\n", file_name);
 	fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
 	if (fd < 0)

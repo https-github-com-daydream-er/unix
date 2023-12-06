@@ -1,7 +1,5 @@
 #include "mytest.h"
 #include "project.h"
-#include <sys/types.h>
-#include <sys/stat.h>
 
 void debug_result(void)
 {
@@ -267,7 +265,7 @@ void Server(char *io_fifo_path)
         sprintf(server_fifo_path, "/tmp/server_fifo_%d", getpid());
 
         // 클라이언트는 서버와 통신할 명명된 파이프 경로를 전달
-        do_comm_node(pid, client_fifo_path, server_fifo_path);
+        do_comm_node(id, client_fifo_path, server_fifo_path);
     }
 }
 
@@ -292,7 +290,8 @@ void parallel_operation(char *client_fifo_path, char *server_fifo_path, char *io
         if (pid == 0)
         {
             // 자식 프로세스는 클라이언트로 동작
-            close(server_fifo_path);
+            close(server_pipe[0]);
+            close(server_pipe[1]);
 
             // 각 클라이언트에서 서버로 통신할 명명된 파이프 경로 설정
             char client_fifo_path[1024];
@@ -307,9 +306,10 @@ void parallel_operation(char *client_fifo_path, char *server_fifo_path, char *io
 
             // 클라이언트에서 서버로 통신
             comm_init(i, client_fifo_path, data);
-            send_server(client_fifo_path, data);
+            send_server(client_fifo_path, server_fifo_path, data);
 
-            close(server_fifo_path);
+            close(server_pipe[0]);
+            close(server_pipe[1]);
 
             // 클라이언트 간 통신을 위한 명명된 파이프 제거
             for (j = 0; j < 4; j++)
@@ -325,10 +325,12 @@ void parallel_operation(char *client_fifo_path, char *server_fifo_path, char *io
     // 부모 프로세스는 서버로 동작
     for (i = 0; i < 4; i++)
     {
-        close(client_fifo_path);
+        close(server_pipe[0]);
+        close(server_pipe[1]);
     }
 
     // 서버에서 클라이언트로 통신할 명명된 파이프 경로 설정
+    char server_fifo_path[1024];
     sprintf(server_fifo_path, "/tmp/server_fifo_%d", getpid());
 
     // 서버에서 각 클라이언트로 데이터 전송
@@ -338,17 +340,19 @@ void parallel_operation(char *client_fifo_path, char *server_fifo_path, char *io
         if (pid == 0)
         {
             // 자식 프로세스는 클라이언트로 동작
-            close(server_fifo_path);
+            close(server_pipe[0]);
+            close(server_pipe[1]);
 
             // 각 클라이언트에서 서버로 통신할 명명된 파이프 경로 설정
-            char *client_fifo_path;
+            char client_fifo_path[1024];
             sprintf(client_fifo_path, "/tmp/client_fifo_%d", getpid());
 
             // 서버에서 전달받은 데이터를 클라이언트에게 전송
             int dump[MB];
-            send_server(server_fifo_path, dump);
+            receive_server(server_fifo_path, client_fifo_path, dump);
 
-            close(client_fifo_path);
+            close(server_pipe[0]);
+            close(server_pipe[1]);
 
             // 클라이언트 간 통신을 위한 명명된 파이프 제거
             for (j = 0; j < 4; j++)
