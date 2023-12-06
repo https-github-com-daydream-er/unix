@@ -28,7 +28,7 @@ void    child_proc(int id)
 		perror("fd fail");
 		exit(1);
 	}
-	for (int i = 0; i < MB; i++)
+	for (i = 0; i < MB; i++)
 		data[i] = 4 * i + id;
 	if ((ret = write(fd, data, MB * sizeof(int))) < 0)
 	{

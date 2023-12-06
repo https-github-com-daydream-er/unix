@@ -288,9 +288,9 @@ static void	parallel_operation(void)
 	int	j;
 	char	server2server[1024];
 
-	for (int i = 0; i < 4; i++)
+	for (i = 0; i < 4; i++)
 	{
-		for (int j = 0; j < 4; j++)
+		for (j = 0; j < 4; j++)
 		{
 			int	ret;
 
