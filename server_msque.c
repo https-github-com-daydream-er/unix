@@ -6,6 +6,7 @@
 
 //틀만 짜놓음. 
 //pid[ ] 0 1 2 3 이 서버 4 5 6 7이 클라.
+//서버는 메세지 요청 받을 때 mtype 봐서 하면 댈듯
 
 struct mymsgbuf {
 	long mtype;
