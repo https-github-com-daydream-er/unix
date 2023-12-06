@@ -1,5 +1,5 @@
-#ifndef PROJECT_H
-# define PROJECT_H
+#ifndef CLIENT_H
+# define CLIENT_H
 
 #include<unistd.h>
 #include<errno.h>
