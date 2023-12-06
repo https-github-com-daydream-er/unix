@@ -1,0 +1,11 @@
+### 실행 방법
+
+sh team_proejct.sh
+./mytest
+
+### 주의사항
+
+각 단계별로 3초씩 sleep을 줬음
+1. create
+2. client_orient
+3. serveer_orient
