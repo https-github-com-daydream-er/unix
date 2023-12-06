@@ -59,7 +59,7 @@ static void	do_compute_node(int *dump)
 
 }
 
-static void	comm_init(int id, int server2server[4][2])
+static void	comm_init(int id, int client2server[4])
 {
 	int			i;
 	char		fifo_name[64];
@@ -69,22 +69,17 @@ static void	comm_init(int id, int server2server[4][2])
 		if (id == i)
 			continue;
 		sprintf(fifo_name, "tmp/serverfifo%d2%d", i, id);
-		server2server[i][0] = open(fifo_name, O_RDONLY | O_NONBLOCK); // i -> id: read
-	}
-	for (i = 0; i < 4; i++)	{
-		if (id == i)
-			continue;
-		sprintf(fifo_name, "tmp/serverfifo%d2%d", id, i);
-		server2server[i][1] = open(fifo_name, O_WRONLY); // id -> i: write
+		client2server[i] = open(fifo_name, O_RDONLY | O_NONBLOCK); // i -> id: read
 	}
 }
 
-static void	send_server(int id, char fifo_name[1024])
+static void	send_server(int id)
 {
 	int		i;
 	int		fd;
 	int		pip;
 	char	file_name[1024];
+	int		client2server[4];
 	int		data[MB];
 	int		ret;
 
@@ -92,14 +87,30 @@ static void	send_server(int id, char fifo_name[1024])
 	fd = open(file_name, O_RDONLY);
 	if ((ret = read(fd, data, MB * sizeof(int))) < 0)
 		exit(1);
-	pip = open(fifo_name, O_WRONLY);
+	for (i = 0; i < 4; i++)	{
+		sprintf(fifo_name, "tmp/serverfifo%d2%d", id, i);
+		client2server[i] = open(fifo_name, O_WRONLY); // id -> i: write
+	}
 	i = 0;
 	while (i < MB)
 	{
-		write(pip, &data[i], sizeof(int) * 8);
+		else if (1 <= remain && remain <= 8)
+			ret = write(client2server[0], &data[i], sizeof(int)); // id -> 0; write
+		else if (9 <= remain && remain <= 16)
+			ret = write(client2server[1], &data[i], sizeof(int)); // id -> 1; write
+		else if (17 <= remain && remain <= 24)
+			ret = write(client2server[2], &data[i], sizeof(int)); // id -> 2; write
+		else if ((25 <= remain && remain < 32) || remain == 0)
+			ret = write(client2server[3], &data[i], sizeof(int)); // id -> 3; write
+		else
+		{
+			perror("wrong chunk number");
+			exit(1);
+		}
 		i += 8;
 	}
-	close(pip);
+	for (i = 0; i < 4; i++)
+		close(client2server[i]);
 	close(fd);
 }
 
@@ -129,11 +140,11 @@ static void	writeTimeAdvLock(int index, int time_result)
 }
 
 // do_comm -> do_compute -> do_io_node
-static void	do_comm_node(int id, char fifo_name[1024])
+static void	do_comm_node(int id)
 {
 	int		ret;
 	int		chunk[8];
-	int		server2server[4][2];
+	int		client2server[4];
 	int		i;
 	int		j;
 	int		dump[MB];
@@ -148,42 +159,25 @@ static void	do_comm_node(int id, char fifo_name[1024])
 	gettimeofday(&stime, NULL);
 #endif
 	dump_idx = -1;
-	comm_init(id, server2server);
-	pip = open(fifo_name, O_RDONLY);
-	while ((chunk_size = read(pip, chunk, sizeof(int) * 8)) > 0)
+	comm_init(id, client2server);
+
+	for (i = 0; i < 8; i++) // 8개의 데이터를 파이프에 쓴다.
 	{
-		for (i = 0; i < 8; i++) // 8개의 데이터를 파이프에 쓴다.
-		{
-			int	remain = chunk[i] % 32;
+		int	remain = chunk[i] % 32;
 
-			if ((8 * id + 1 <= remain && remain <= 8 * id + 8) || (id == 3 && remain == 0))
-				dump[++dump_idx] = chunk[i];
-			else if (1 <= remain && remain <= 8)
-				ret = write(server2server[0][1], &chunk[i], sizeof(int)); // id -> 0; write
-			else if (9 <= remain && remain <= 16)
-				ret = write(server2server[1][1], &chunk[i], sizeof(int)); // id -> 1; write
-			else if (17 <= remain && remain <= 24)
-				ret = write(server2server[2][1], &chunk[i], sizeof(int)); // id -> 2; write
-			else if ((25 <= remain && remain < 32) || remain == 0)
-				ret = write(server2server[3][1], &chunk[i], sizeof(int)); // id -> 3; write
-			else
-			{
-				perror("wrong chunk number");
-				exit(1);
-			}
-		}
-		for (j = 0; j < 3; j++) // 파이프를 비우기 위해서는 최소 8번씩 반복해야 한다.
+		
+	}
+	for (j = 0; j < 3; j++) // 파이프를 비우기 위해서는 최소 8번씩 반복해야 한다.
+	{
+		for (i = 0; i < 4; i++) // 하지만, 동시성 문제를 극복하기 위해 12번 정도 여유롭게 반복해서 파이프를 비운다.
 		{
-			for (i = 0; i < 4; i++) // 하지만, 동시성 문제를 극복하기 위해 12번 정도 여유롭게 반복해서 파이프를 비운다.
-			{
-				int	buffer;
+			int	buffer;
 
-				if (id == i)
-					continue;
-				ret = read(server2server[i][0], &buffer, sizeof(int)); // i -> id; read
-				if (ret > 0)
-					dump[++dump_idx] = buffer;
-			}
+			if (id == i)
+				continue;
+			ret = read(client2server[i][0], &buffer, sizeof(int)); // i -> id; read
+			if (ret > 0)
+				dump[++dump_idx] = buffer;
 		}
 	}
 	while (1)
@@ -194,7 +188,7 @@ static void	do_comm_node(int id, char fifo_name[1024])
 
 			if (id == i)
 				continue;
-			ret = read(server2server[i][0], &buffer, sizeof(int)); // i -> id; read
+			ret = read(client2server[i][0], &buffer, sizeof(int)); // i -> id; read
 			if (ret > 0)
 				dump[++dump_idx] = buffer;
 		}
@@ -210,9 +204,9 @@ static void	do_comm_node(int id, char fifo_name[1024])
 	do_compute_node(dump); // 정렬하기
 	do_io_node(id, dump); // io_node로 데이터 저장하기
 	for (i = 0; i < 4; i++)
-		close(server2server[i][0]);
+		close(client2server[i][0]);
 	for (i = 0; i < 4; i++)
-		close(server2server[i][1]);
+		close(client2server[i][1]);
 	close(pip);
 }
 
@@ -268,14 +262,12 @@ static void	Client2Server(int i)
 	int	status;
 	char	server_fifo[1024];
 
-	sprintf(server_fifo, "tmp/server2client%d", i);
-	mkfifo(server_fifo, 0644);
 	pid = fork();
 	if (pid == 0) // client
-		send_server(i, server_fifo);
+		send_server(i);
 	else // server
 	{
-		do_comm_node(i, server_fifo);
+		do_comm_node(i);
 		pid = wait(&status);
 		printf("[DEBUG] Client2Server, pid : %d, status: %d done\n", pid, status);
 	}
@@ -286,7 +278,7 @@ static void	parallel_operation(void)
 {
 	int	i;
 	int	j;
-	char	server2server[1024];
+	char	client2server[1024];
 
 	for (i = 0; i < 4; i++)
 	{
@@ -294,8 +286,8 @@ static void	parallel_operation(void)
 		{
 			int	ret;
 
-			sprintf(server2server, "tmp/serverfifo%d2%d", i, j);
-			ret = mkfifo(server2server, 0644);
+			sprintf(client2server, "tmp/serverfifo%d2%d", i, j);
+			ret = mkfifo(client2server, 0644);
 		}
 	}
 	for (i = 0; i < 4; i++)
@@ -311,14 +303,6 @@ static void	parallel_operation(void)
 	}
 	parent("parallel_operation");
 	debug_result();
-	for (i = 0; i < 4; i++)
-	{
-		for (j = 0; j < 4; j++)
-		{
-			sprintf(server2server, "tmp/serverfifo%d2%d", i, j);
-			unlink(server2server);
-		}
-	}
 }
 
 int server_oriented_io() {
