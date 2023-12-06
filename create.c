@@ -20,6 +20,7 @@ void    child_proc(int id)
 	int		fd;
 	int		data[MB];
 	int		ret;
+	int		i;
 
 	sprintf(file_name, "data/p%d.dat", id);
 	fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
