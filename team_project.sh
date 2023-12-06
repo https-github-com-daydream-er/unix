@@ -1,6 +1,6 @@
-gcc -c create.c -I create.h
-gcc -c -DTIMES client.c -I client.h
-gcc -c -DTIMES server.c -I server.h
+gcc -c create.c
+gcc -c -DTIMES client.c
+gcc -c -DTIMES server.c
 ar rc libmytest.a create.o 
 ar rc libmytest.a client.o 
 ar rc libmytest.a server.o 
