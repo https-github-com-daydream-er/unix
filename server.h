@@ -11,7 +11,7 @@
 #include <sys/time.h>
 #include <time.h>
 #include <sys/stat.h>
-
+#include"mytest.h"
 #include <string.h>
 // 1MB = 1048576
 // 1/4 MB = 262144
@@ -27,7 +27,7 @@
 static void	debug_result(void);
 static int	ft_compare(const void *a, const void *b);
 static void	do_compute_node(int *dump);
-static void	comm_init(int id, int server2server[4][2]);
+static void	comm_init(int id, int server2server[4]);
 static void send_server(int id);
 static void	writeTimeAdvLock(int index, int time_result);
 static void	do_comm_node(int id);

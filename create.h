@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <time.h>
+#include"mytest.h"
 
 // 1MB = 1048576
 // 1/4 MB = 262144
@@ -24,6 +25,5 @@
 
 void	debug_file(void);
 void    child_proc(int id);
-int     create_source_data();
 
 #endif

@@ -66,8 +66,6 @@ static void	comm_init(int id, int client2server[4])
 
 	for (i = 0; i < 4; i++)
 	{
-		if (id == i)
-			continue;
 		sprintf(fifo_name, "tmp/serverfifo%d2%d", i, id);
 		client2server[i] = open(fifo_name, O_RDONLY | O_NONBLOCK); // i -> id: read
 	}
@@ -77,24 +75,29 @@ static void	send_server(int id)
 {
 	int		i;
 	int		fd;
-	int		pip;
 	char	file_name[1024];
+	char	fifo_name[128];
 	int		client2server[4];
 	int		data[MB];
 	int		ret;
+	char	cmd[1024];
 
-	sprintf(file_name, "data/p%d.dat", id + 1);
+	sprintf(file_name, "server_data/p%d.dat", id + 1);
 	fd = open(file_name, O_RDONLY);
 	if ((ret = read(fd, data, MB * sizeof(int))) < 0)
 		exit(1);
-	for (i = 0; i < 4; i++)	{
+	for (i = 0; i < 4; i++)	
+	{
 		sprintf(fifo_name, "tmp/serverfifo%d2%d", id, i);
 		client2server[i] = open(fifo_name, O_WRONLY); // id -> i: write
 	}
 	i = 0;
 	while (i < MB)
 	{
-		else if (1 <= remain && remain <= 8)
+		int	remain;
+
+		remain = data[i] % 32;
+		if (1 <= remain && remain <= 8)
 			ret = write(client2server[0], &data[i], sizeof(int)); // id -> 0; write
 		else if (9 <= remain && remain <= 16)
 			ret = write(client2server[1], &data[i], sizeof(int)); // id -> 1; write
@@ -107,7 +110,7 @@ static void	send_server(int id)
 			perror("wrong chunk number");
 			exit(1);
 		}
-		i += 8;
+		i++;
 	}
 	for (i = 0; i < 4; i++)
 		close(client2server[i]);
@@ -146,11 +149,8 @@ static void	do_comm_node(int id)
 	int		chunk[8];
 	int		client2server[4];
 	int		i;
-	int		j;
 	int		dump[MB];
 	int		dump_idx;
-	int		pip;
-	int		chunk_size;
 
 #ifdef TIMES
 	int time_result;
@@ -158,43 +158,21 @@ static void	do_comm_node(int id)
 
 	gettimeofday(&stime, NULL);
 #endif
-	dump_idx = -1;
 	comm_init(id, client2server);
 
-	for (i = 0; i < 8; i++) // 8개의 데이터를 파이프에 쓴다.
-	{
-		int	remain = chunk[i] % 32;
-
-		
-	}
-	for (j = 0; j < 3; j++) // 파이프를 비우기 위해서는 최소 8번씩 반복해야 한다.
-	{
-		for (i = 0; i < 4; i++) // 하지만, 동시성 문제를 극복하기 위해 12번 정도 여유롭게 반복해서 파이프를 비운다.
-		{
-			int	buffer;
-
-			if (id == i)
-				continue;
-			ret = read(client2server[i][0], &buffer, sizeof(int)); // i -> id; read
-			if (ret > 0)
-				dump[++dump_idx] = buffer;
-		}
-	}
-	while (1)
+	dump_idx = 0;
+	while (dump_idx < MB)
 	{
 		for (i = 0; i < 4; i++)
 		{
-			int	buffer;
-
-			if (id == i)
-				continue;
-			ret = read(client2server[i][0], &buffer, sizeof(int)); // i -> id; read
-			if (ret > 0)
-				dump[++dump_idx] = buffer;
+			ret = read(client2server[i], chunk, sizeof(int) * 8); // NON_BLOCK, chunk 단위로 읽으려고 시도
+			// ret은 바이트 단위이고, dump_idx는 sizeof(int) 단위이다.
+			if (ret > 0) // fifo에 chunk 단위로 들어가 있다면 읽는다.
+			{
+				memcpy(&dump[dump_idx], chunk, ret); // ret만큼만 적는다.
+				dump_idx += (ret / sizeof(int)); // write에서 sizeof(int) 단위로 찍기 때문에 sizeof(int)의 배수
+			}
 		}
-		// dump_idx == MB - 1의 의미는 dump[MB - 1]에 write를 완료
-		if (dump_idx == MB - 1)
-			break ;
 	}
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
@@ -204,10 +182,7 @@ static void	do_comm_node(int id)
 	do_compute_node(dump); // 정렬하기
 	do_io_node(id, dump); // io_node로 데이터 저장하기
 	for (i = 0; i < 4; i++)
-		close(client2server[i][0]);
-	for (i = 0; i < 4; i++)
-		close(client2server[i][1]);
-	close(pip);
+		close(client2server[i]);
 }
 
 static void	parent(char *str)
@@ -230,7 +205,7 @@ static void	parent(char *str)
 	}
 }
 
-static void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에 저장?
+static void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에 저장
 {
 	int		fd;
 	char	file_name[25];
@@ -254,13 +229,17 @@ static void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에
 	time_result = (etime.tv_usec - stime.tv_usec);
 	writeTimeAdvLock(IO, time_result);
 #endif
+	// char	cmd[1024];
+
+	// sprintf(cmd, "od -i IOnode_server/IOnode_#%d | more", id + 1);
+	// system(cmd);
+	close(fd);
 }
 
-static void	Client2Server(int i)
+static void	ft_Client2Server(int i)
 {
 	int	pid;
 	int	status;
-	char	server_fifo[1024];
 
 	pid = fork();
 	if (pid == 0) // client
@@ -271,7 +250,6 @@ static void	Client2Server(int i)
 		pid = wait(&status);
 		printf("[DEBUG] Client2Server, pid : %d, status: %d done\n", pid, status);
 	}
-	unlink(server_fifo);
 }
 
 static void	parallel_operation(void)
@@ -279,6 +257,7 @@ static void	parallel_operation(void)
 	int	i;
 	int	j;
 	char	client2server[1024];
+	char	cmd[1024];
 
 	for (i = 0; i < 4; i++)
 	{
@@ -297,7 +276,7 @@ static void	parallel_operation(void)
 		pid = fork();
 		if (pid == 0)
 		{
-			Client2Server(i);
+			ft_Client2Server(i);
 			exit(0);
 		}
 	}

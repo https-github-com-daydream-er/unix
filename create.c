@@ -3,13 +3,17 @@
 
 void	debug_file(void)
 {
-	int	i;
+	int		i;
 	char	cmd[1024];
 
-	i = 0;
-	for (i = 1; i <= 4; i++)
+	for (i = 0; i < 4; i++)
 	{
-		sprintf(cmd, "od -i data/p%d.dat | more", i);
+		sprintf(cmd, "od -i client_data/p%d.dat | more", i + 1);
+		system(cmd);
+	}
+	for (i = 0; i < 4; i++)
+	{
+		sprintf(cmd, "od -i server_data/p%d.dat | more", i + 1);
 		system(cmd);
 	}
 }
@@ -17,28 +21,31 @@ void	debug_file(void)
 void    child_proc(int id)
 {
 	char	file_name[1024];
-	int		fd;
+	int		fd1;
+	int		fd2;
 	int		data[MB];
 	int		ret;
 	int		i;
 
-	sprintf(file_name, "data/p%d.dat", id);
-	fd = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-	if (fd == -1)
+	sprintf(file_name, "client_data/p%d.dat", id);
+	fd1 = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+	sprintf(file_name, "server_data/p%d.dat", id);
+	fd2 = open(file_name, O_CREAT | O_WRONLY | O_TRUNC, 0644);
+	if (fd1 == -1 || fd2 == -1)
 	{
 		perror("fd fail");
 		exit(1);
 	}
 	for (i = 0; i < MB; i++)
 		data[i] = 4 * i + id;
-	if ((ret = write(fd, data, MB * sizeof(int))) < 0)
+	if ((ret = write(fd1, data, MB * sizeof(int))) != MB * 4)
 	{
-		perror("write fail");
+		perror("client write fail");
 		exit(1);
 	}
-	if (ret != MB * 4)
+	if ((ret = write(fd2, data, MB * sizeof(int))) != MB * 4)
 	{
-		printf("[Error] Error");
+		perror("server write fail");
 		exit(1);
 	}
 	exit(0);
