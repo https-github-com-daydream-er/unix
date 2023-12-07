@@ -323,7 +323,6 @@ int client_oriented_io() {
 #ifdef TIMES
 	gettimeofday(&stime, NULL);
 #endif
-
 	int	fd;
 	int	ZERO;
 
@@ -335,12 +334,9 @@ int client_oriented_io() {
 	write(fd, &ZERO, sizeof(int));
 	close(fd);
 	parallel_operation4client();
-
 #ifdef TIMES
-	gettimeofday(&etime, NULL);
-	time_result = etime.tv_usec - stime.tv_usec;
-	if (time_result < 0)
-		time_result += SEC;
+	gettimeofday(&etime, NULL); 
+	time_result = (etime.tv_sec - stime.tv_sec) * 1000000 + etime.tv_usec - stime.tv_usec;
 	printf("Client_oriented_io TIMES == %ld %ld %ld\n", (long)etime.tv_usec, (long)stime.tv_usec, (long)time_result);
 #endif
 	return (1);

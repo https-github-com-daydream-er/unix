@@ -308,9 +308,7 @@ int server_oriented_io() {
 
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
-	time_result = etime.tv_usec - stime.tv_usec;
-	if (time_result < 0)
-		time_result += SEC;
+	time_result = (etime.tv_sec - stime.tv_sec) * 1000000 + etime.tv_usec - stime.tv_usec;
 	printf("Server_oriented_io TIMES == %ld %ld %ld\n", (long)etime.tv_usec, (long)stime.tv_usec, (long)time_result);
 #endif
 	return (1);
