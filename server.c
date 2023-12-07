@@ -77,7 +77,7 @@ static void	send_server(int id)
 	int		ret;
 	char	cmd[1024];
 
-	sprintf(cmd, "od -i server_data/p%d.dat > server_data%d.dump", id + 1, id + 1);
+	sprintf(cmd, "od -i server_data/p%d.dat > dump/server_data%d.dump", id + 1, id + 1);
 	system(cmd);
 	sprintf(file_name, "server_data/p%d.dat", id + 1);
 	fd = open(file_name, O_RDONLY);
@@ -228,7 +228,7 @@ static void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에
 #endif
 	char	cmd[1024];
 
-	sprintf(cmd, "od -i IOnode_server/IOnode_#%d > server_result%d.dump", id + 1, id + 1);
+	sprintf(cmd, "od -i IOnode_server/IOnode_#%d > dump/server_result%d.dump", id + 1, id + 1);
 	system(cmd);
 	close(fd);
 }

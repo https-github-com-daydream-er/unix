@@ -55,13 +55,13 @@ int main() {
 	printf("src diff client and server\n");
 	for (i = 0; i < 4; i++)
 	{
-		sprintf(cmd, "diff client_data%d.dump server_data%d.dump", i + 1, i + 1);
+		sprintf(cmd, "diff dump/client_data%d.dump dump/server_data%d.dump", i + 1, i + 1);
 		system(cmd);
 	}
 	printf("result diff client and server\n");
 	for (i = 0; i < 4; i++)
 	{
-		sprintf(cmd, "diff client_result%d.dump server_result%d.dump", i + 1, i + 1);
+		sprintf(cmd, "diff dump/client_result%d.dump dump/server_result%d.dump", i + 1, i + 1);
 		system(cmd);
 	}
 }

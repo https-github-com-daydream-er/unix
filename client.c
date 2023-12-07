@@ -61,7 +61,7 @@ static void	comm_init4client(int id, int client2client[4][4][2], int pip[2], int
 	int			fd;
 	int			i;
 
-	sprintf(cmd, "od -i client_data/p%d.dat > client_data%d.dump", id + 1, id + 1);
+	sprintf(cmd, "od -i client_data/p%d.dat > dump/client_data%d.dump", id + 1, id + 1);
 	system(cmd);
 	sprintf(file_name, "client_data/p%d.dat", id + 1);
 	fd = open(file_name, O_RDONLY);
@@ -240,7 +240,7 @@ static void	do_io_node4client(int id, int pip[2])
 #endif
 	char	cmd[1024];
 
-	sprintf(cmd, "od -i IOnode_client/IOnode_#%d > client_result%d.dump", id + 1, id + 1);
+	sprintf(cmd, "od -i IOnode_client/IOnode_#%d > dump/client_result%d.dump", id + 1, id + 1);
 	system(cmd);
 	close(pip[0]);
 	close(fd);
