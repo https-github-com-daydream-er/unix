@@ -10,8 +10,10 @@ int main() {
 
 	printf("create_source_data\n");
 	create_source_data(); // one-time execution
+	printf("\n\n\n");
 	client_oriented_io();
 	sleep(3);
+	printf("\n\n\n");
 	server_oriented_io();
 	sleep(3);
 	printf("\n\n\n");
