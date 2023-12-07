@@ -3,18 +3,13 @@
 
 #define	SERVER_H
 
-void	debug_result(void)
+static void	debug_result4client(void)
 {
 	int		i;
-	char	cmd[1024];
 	int		fd;
 	int		buffer[MB];
+	char	cmd[1024];
 
-	for (i = 1; i <= 4; i++)
-	{
-		sprintf(cmd, "od -i IOnode_client/IOnode_#%d | more", i);
-		system(cmd);
-	}
 	for (i = 1; i <= 4; i++)
 	{
 		sprintf(cmd, "IOnode_client/IOnode_#%d", i);
@@ -29,7 +24,7 @@ void	debug_result(void)
 }
 
 // 오름차순 비교 함수 구현
-int ft_compare(const void *a, const void *b)
+static int ft_compare4client(const void *a, const void *b)
 {
     int num1 = *(int *)a;
     int num2 = *(int *)b;
@@ -42,7 +37,7 @@ int ft_compare(const void *a, const void *b)
 }
 
 // rest_time;
-void	do_compute_node(int *dump)
+static void	do_compute_node4client(int *dump)
 {
 #ifdef TIMES
 	int time_result;
@@ -50,23 +45,25 @@ void	do_compute_node(int *dump)
 
 	gettimeofday(&stime, NULL);
 #endif
-	qsort(dump, MB, sizeof(int), ft_compare);
+	qsort(dump, MB, sizeof(int), ft_compare4client);
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
 	time_result = (etime.tv_usec - stime.tv_usec);
-	writeTimeAdvLock(COMP, time_result);
+	writeTimeAdvLock4client(COMP, time_result);
 #endif
 
 }
 
-void	comm_init(int id, int client2client[4][4][2], int pip[2], int data[MB])
+static void	comm_init4client(int id, int client2client[4][4][2], int pip[2], int data[MB])
 {
 	char		file_name[1024];
 	char		cmd[1024];
 	int			fd;
 	int			i;
 
-	sprintf(file_name, "data/p%d.dat", id + 1);
+	sprintf(cmd, "od -i client_data/p%d.dat > dump/client_data%d.dump", id + 1, id + 1);
+	system(cmd);
+	sprintf(file_name, "client_data/p%d.dat", id + 1);
 	fd = open(file_name, O_RDONLY);
 	if (fd < 0)
 		exit(1);
@@ -85,7 +82,7 @@ void	comm_init(int id, int client2client[4][4][2], int pip[2], int data[MB])
 	}
 }
 
-void    send_server(int pip[2], int dump[MB])
+static void	send_server4client(int pip[2], int dump[MB])
 {
 	int	i;
 
@@ -97,7 +94,7 @@ void    send_server(int pip[2], int dump[MB])
 	}
 }
 
-void	writeTimeAdvLock(int index, int time_result)
+static void	writeTimeAdvLock4client(int index, int time_result)
 {
 	struct flock	myLock;
 	int				fd;
@@ -123,7 +120,7 @@ void	writeTimeAdvLock(int index, int time_result)
 }
 
 // comm_time
-void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
+static void	do_comm_node4client(int id, int client2client[4][4][2], int pip[2])
 {
 	int			data[MB];
 	int			dump[MB];
@@ -131,7 +128,7 @@ void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
 	int			i;
 	int			dump_idx;
 
-	comm_init(id, client2client, pip, data);
+	comm_init4client(id, client2client, pip, data);
 	ret = 0;
 	dump_idx = -1;
 
@@ -200,11 +197,11 @@ void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
 	time_result = (etime.tv_usec - stime.tv_usec);
-	writeTimeAdvLock(COMM, time_result);
+	writeTimeAdvLock4client(COMM, time_result);
 #endif
 
-	do_compute_node(dump); // 정렬하기
-	send_server(pip, dump); // server에게 전달
+	do_compute_node4client(dump); // 정렬하기
+	send_server4client(pip, dump); // server에게 전달
 	for (i = 0; i < 4; i++)
 		close(client2client[id][i][1]); // id -> i :  close(write)
 	for (i = 0; i < 4; i++)
@@ -213,7 +210,7 @@ void	do_comm_node(int id, int client2client[4][4][2], int pip[2])
 }
 
 // io_time
-void	do_io_node(int id, int pip[2])
+static void	do_io_node4client(int id, int pip[2])
 {
 	int		ret;
 	int		chunk[8];
@@ -239,13 +236,17 @@ void	do_io_node(int id, int pip[2])
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
 	time_result = (etime.tv_usec - stime.tv_usec);
-	writeTimeAdvLock(IO, time_result);
+	writeTimeAdvLock4client(IO, time_result);
 #endif
+	char	cmd[1024];
+
+	sprintf(cmd, "od -i IOnode_client/IOnode_#%d > dump/client_result%d.dump", id + 1, id + 1);
+	system(cmd);
 	close(pip[0]);
 	close(fd);
 }
 
-void	parent(char *str)
+static void	parent4client(char *str)
 {
 	int		pid;
 	int		status;
@@ -265,7 +266,7 @@ void	parent(char *str)
 	}
 }
 
-void	Client2Server(int i, int client2client[4][4][2])
+static void	Client2Server4client(int i, int client2client[4][4][2])
 {
 	int	pid;
 	int	pip[2];
@@ -274,20 +275,21 @@ void	Client2Server(int i, int client2client[4][4][2])
 	pipe(pip);
 	pid = fork();
 	if (pid == 0) // client
-		do_comm_node(i, client2client, pip);
+		do_comm_node4client(i, client2client, pip);
 	else // server
 	{
-		do_io_node(i, pip);
+		do_io_node4client(i, pip);
 		wait(&status);
 		printf("[DEBUG] Client2Server, pid : %d, status: %d done\n", pid, status);
 	}
 }
 
-void	parallel_operation(void)
+static void	parallel_operation4client(void)
 {
 	int	client2client[4][4][2];
 	int	i;
 	int	j;
+	char	cmd[1024];
 
 	for (i = 0; i < 4; i++)
 	{
@@ -301,12 +303,12 @@ void	parallel_operation(void)
 		pid = fork();
 		if (pid == 0)
 		{
-			Client2Server(i, client2client);
+			Client2Server4client(i, client2client);
 			exit(0);
 		}
 	}
-	parent("parallel_operation");
-	debug_result();
+	parent4client("parallel_operation");
+	debug_result4client();
 }
 
 int client_oriented_io() {
@@ -332,7 +334,7 @@ int client_oriented_io() {
 	write(fd, &ZERO, sizeof(int));
 	write(fd, &ZERO, sizeof(int));
 	close(fd);
-	parallel_operation();
+	parallel_operation4client();
 
 #ifdef TIMES
 	gettimeofday(&etime, NULL);
