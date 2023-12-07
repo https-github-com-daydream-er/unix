@@ -85,7 +85,7 @@ int create_source_data() {
 		}
 		i++;
 	}
-	debug_file();
+	// debug_file();
 	return (0);
 }
 

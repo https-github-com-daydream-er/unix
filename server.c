@@ -12,11 +12,6 @@ static void	debug_result(void)
 
 	for (i = 1; i <= 4; i++)
 	{
-		sprintf(cmd, "od -i IOnode_server/IOnode_#%d | more", i);
-		system(cmd);
-	}
-	for (i = 1; i <= 4; i++)
-	{
 		sprintf(cmd, "IOnode_server/IOnode_#%d", i);
 		fd = open(cmd, O_RDONLY);
 		if (fd < 0)
@@ -82,6 +77,8 @@ static void	send_server(int id)
 	int		ret;
 	char	cmd[1024];
 
+	sprintf(cmd, "od -i server_data/p%d.dat > server_data%d.dump", id + 1, id + 1);
+	system(cmd);
 	sprintf(file_name, "server_data/p%d.dat", id + 1);
 	fd = open(file_name, O_RDONLY);
 	if ((ret = read(fd, data, MB * sizeof(int))) < 0)
@@ -229,10 +226,10 @@ static void	do_io_node(int id, int dump[MB]) // 모아진 데이터를 한번에
 	time_result = (etime.tv_usec - stime.tv_usec);
 	writeTimeAdvLock(IO, time_result);
 #endif
-	// char	cmd[1024];
+	char	cmd[1024];
 
-	// sprintf(cmd, "od -i IOnode_server/IOnode_#%d | more", id + 1);
-	// system(cmd);
+	sprintf(cmd, "od -i IOnode_server/IOnode_#%d > server_result%d.dump", id + 1, id + 1);
+	system(cmd);
 	close(fd);
 }
 

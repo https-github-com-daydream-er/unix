@@ -6,15 +6,10 @@
 static void	debug_result4client(void)
 {
 	int		i;
-	char	cmd[1024];
 	int		fd;
 	int		buffer[MB];
+	char	cmd[1024];
 
-	for (i = 1; i <= 4; i++)
-	{
-		sprintf(cmd, "od -i IOnode_client/IOnode_#%d | more", i);
-		system(cmd);
-	}
 	for (i = 1; i <= 4; i++)
 	{
 		sprintf(cmd, "IOnode_client/IOnode_#%d", i);
@@ -66,9 +61,9 @@ static void	comm_init4client(int id, int client2client[4][4][2], int pip[2], int
 	int			fd;
 	int			i;
 
+	sprintf(cmd, "od -i client_data/p%d.dat > client_data%d.dump", id + 1, id + 1);
+	system(cmd);
 	sprintf(file_name, "client_data/p%d.dat", id + 1);
-	// sprintf(cmd, "od -i client_data/p%d.dat | more", id + 1);
-	// system(cmd);
 	fd = open(file_name, O_RDONLY);
 	if (fd < 0)
 		exit(1);
@@ -243,10 +238,10 @@ static void	do_io_node4client(int id, int pip[2])
 	time_result = (etime.tv_usec - stime.tv_usec);
 	writeTimeAdvLock4client(IO, time_result);
 #endif
-	// char	cmd[1024];
+	char	cmd[1024];
 
-	// sprintf(cmd, "od -i IOnode_client/IOnode_#%d | more", id + 1);
-	// system(cmd);
+	sprintf(cmd, "od -i IOnode_client/IOnode_#%d > client_result%d.dump", id + 1, id + 1);
+	system(cmd);
 	close(pip[0]);
 	close(fd);
 }
